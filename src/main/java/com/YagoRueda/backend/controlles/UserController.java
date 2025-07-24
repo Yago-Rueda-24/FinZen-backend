@@ -2,14 +2,12 @@ package com.YagoRueda.backend.controlles;
 
 import com.YagoRueda.backend.Dtos.UserDto;
 import com.YagoRueda.backend.exceptions.InvalidInputDataException;
+import com.YagoRueda.backend.exceptions.UnauthorizedException;
 import com.YagoRueda.backend.models.UserEntity;
 import com.YagoRueda.backend.services.UserService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/user")
@@ -22,7 +20,7 @@ public class UserController {
     }
 
     @PostMapping("/signup")
-    public ResponseEntity<?> signup(@RequestBody UserDto dto) throws InvalidInputDataException {
+    public ResponseEntity<?> signup(@RequestBody UserDto dto) {
 
         if (dto.getUsername() == null || dto.getUsername().isEmpty()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Uno o varios campos estan vacios");
@@ -40,5 +38,32 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }
 
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody UserDto dto) {
+        if (dto.getUsername() == null || dto.getUsername().isEmpty()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Uno o varios campos estan vacios");
+        }
+        if (dto.getPassword() == null || dto.getPassword().isEmpty()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Uno o varios campos estan vacios");
+        }
+        try {
+            String token = userService.login(dto);
+            return ResponseEntity.status(HttpStatus.OK).body(token);
+        } catch (InvalidInputDataException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
+    }
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(@RequestParam String token) {
+        try {
+            UserEntity user = userService.logout(token);
+            return ResponseEntity.status(HttpStatus.OK).body(user.toDTO());
+        } catch (InvalidInputDataException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (UnauthorizedException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        }
     }
 }
