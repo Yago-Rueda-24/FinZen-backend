@@ -33,4 +33,12 @@ public class TokenEntity {
     @Setter
     @Column(nullable = false)
     private Instant expiresAt;
+
+    @Getter
+    @Setter
+    private boolean expired;
+
+    @Getter
+    @Setter
+    private boolean revoked;
 }
