@@ -15,43 +15,70 @@ import java.util.UUID;
 public class TokenService {
 
     private final TokenRepository tokenRepository;
-    private final Duration TOKEN_DURATION = Duration.ofHours(2);
 
     public TokenService(TokenRepository tokenRepository) {
         this.tokenRepository = tokenRepository;
     }
 
+    /**
+     * Crear un token y lo asigna a un usuario
+     * @param user El usuario al que se le asignara el token
+     * @return El tokenEntity generado
+     */
     public TokenEntity createToken(UserEntity user) {
         TokenEntity token = new TokenEntity();
         token.setTokenId(UUID.randomUUID().toString());
         token.setUser(user);
         token.setCreatedAt(Instant.now());
         token.setExpiresAt(Instant.now().plus(30, ChronoUnit.MINUTES));
+        token.setExpired(false);
+        token.setRevoked(false);
         return tokenRepository.save(token);
     }
 
-    // Borrar un token específico
-    public void deleteToken(String tokenId) {
-        tokenRepository.findByTokenId(tokenId).ifPresent(tokenRepository::delete);
-    }
-
-    // Borrar todos los tokens de un usuario (por logout, por ejemplo)
-    public void deleteAllTokensForUser(UserEntity user) {
-        tokenRepository.deleteByUser(user);
-    }
 
     // Validar y renovar token si aún no ha caducado
+
+    /**
+     * Válida el token, en caso de que sea válido lo renueva, en caso de que haya caducado se marca como caducado
+     * @param tokenId El token
+     * @return {@code True} en caso de que el token sea válido {@code False} en caso contrario
+     */
     public boolean validateAndRenewToken(String tokenId) {
         Optional<TokenEntity> optionalToken = tokenRepository.findByTokenId(tokenId);
         if (optionalToken.isPresent()) {
             TokenEntity token = optionalToken.get();
+
+            if (token.isRevoked()) {
+                return false;
+            }
             if (token.getExpiresAt().isAfter(Instant.now())) {
                 token.setExpiresAt(Instant.now().plus(30, ChronoUnit.MINUTES)); // Renovación
                 tokenRepository.save(token);
                 return true;
+            } else {
+                token.setExpired(true);
+                tokenRepository.save(token);
+                return false;
             }
         }
         return false;
+    }
+
+    /**
+     * Devuelve el usuario asociado a un token
+     * @param tokenId El token
+     * @return {@code UserEntity} asociada a ese usuario
+     */
+    public UserEntity getUser(String tokenId) {
+        Optional<TokenEntity> optionalToken = tokenRepository.findByTokenId(tokenId);
+        if (optionalToken.isPresent()) {
+            TokenEntity token = optionalToken.get();
+            return token.getUser();
+
+        } else {
+            return null;
+        }
     }
 
 }
