@@ -1,5 +1,6 @@
 package com.YagoRueda.backend.models;
 
+import com.YagoRueda.backend.Dtos.UserDto;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -25,10 +26,13 @@ public class UserEntity {
     @Setter
     private Instant signup_date;
 
-    @Setter
-    @Getter
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<TokenEntity> tokens = new ArrayList<>();
+    public UserDto toDTO() {
+        UserDto dto = new UserDto();
+        dto.setId(this.getId());
+        dto.setUsername(this.getUsername());
+        dto.setSignup_date(this.getSignup_date());
+        return dto;
+    }
 
 
 }
