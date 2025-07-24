@@ -2,7 +2,10 @@ package com.YagoRueda.backend.services;
 
 import com.YagoRueda.backend.Dtos.UserDto;
 import com.YagoRueda.backend.exceptions.InvalidInputDataException;
+import com.YagoRueda.backend.exceptions.UnauthorizedException;
+import com.YagoRueda.backend.models.TokenEntity;
 import com.YagoRueda.backend.models.UserEntity;
+import com.YagoRueda.backend.repositories.TokenRepository;
 import com.YagoRueda.backend.repositories.UserRepository;
 import org.springframework.stereotype.Service;
 
@@ -10,15 +13,21 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
 
 @Service
 public class UserService {
 
     private MessageDigest hash;
     private final UserRepository userRepository;
+    private final TokenRepository tokenRepository;
+    private final TokenService tokenService;
 
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, TokenRepository tokenRepository, TokenService tokenService) {
         this.userRepository = userRepository;
+        this.tokenRepository = tokenRepository;
+        this.tokenService = tokenService;
         try {
             this.hash = MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException e) {
@@ -45,5 +54,42 @@ public class UserService {
         entity.setPassword(hashString(dto.getPassword()));
         entity.setSignup_date(Instant.now());
         return userRepository.save(entity);
+    }
+
+    public String login(UserDto dto) {
+        if (!userRepository.existsByUsername(dto.getUsername())) {
+            throw new InvalidInputDataException("El usuario no existe");
+        }
+
+        UserEntity user = userRepository.findByUsername(dto.getUsername());
+        String hashedPassword = hashString(dto.getPassword());
+        if (!user.getPassword().equals(hashedPassword)) {
+            throw new InvalidInputDataException("La contraseña es incorrecta");
+        }
+
+        List<TokenEntity> livetokens = tokenRepository.getLiveTokens(user);
+        livetokens.forEach(token -> {
+            token.setRevoked(true);
+            tokenRepository.save(token);
+        });
+
+        TokenEntity token = tokenService.createToken(user);
+        return token.getTokenId();
+
+    }
+
+    public UserEntity logout(String token) throws InvalidInputDataException, UnauthorizedException {
+        Optional<TokenEntity> optionalToken = tokenRepository.findByTokenId(token);
+        if (optionalToken.isEmpty()) {
+            throw new InvalidInputDataException("El token no existe");
+        }
+        TokenEntity userToken = optionalToken.get();
+        if (!tokenService.validateAndRenewToken(userToken.getTokenId())) {
+            throw new UnauthorizedException("Token caducado o revocado");
+        }
+        UserEntity user = userToken.getUser();
+        userToken.setRevoked(true);
+        tokenRepository.save(userToken);
+        return user;
     }
 }
